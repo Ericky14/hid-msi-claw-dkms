@@ -447,6 +447,21 @@ static int msi_claw_switch_gamepad_mode(struct hid_device *hdev,
 		goto msi_claw_switch_gamepad_mode_err;
 	}
 
+	/* Read current mode and skip switch if already in the target mode.
+	 * Sending a redundant mode switch disrupts the XInput interface and
+	 * causes xpad's EP1 IN to stop receiving gamepad reports.
+	 */
+	ret = msi_claw_read_gamepad_mode(hdev, &check_status);
+	if (ret == 0 &&
+	    check_status.gamepad_mode == status->gamepad_mode &&
+	    check_status.mkeys_function == status->mkeys_function) {
+		hid_info(hdev, "hid-msi-claw already in requested mode %d, skipping switch\n",
+			 (int)status->gamepad_mode);
+		drvdata->control->gamepad_mode = status->gamepad_mode;
+		drvdata->control->mkeys_function = status->mkeys_function;
+		return 0;
+	}
+
 	ret = msi_claw_write_cmd(hdev, MSI_CLAW_COMMAND_TYPE_SWITCH_MODE, cmd_buffer, sizeof(cmd_buffer));
 	if (ret < 0) {
 		hid_err(hdev, "hid-msi-claw failed to send write request to switch controller mode: %d\n", ret);
